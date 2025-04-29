@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>W&L Note Taker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Tailwind gray-50 */
+        }
+        /* Simple confetti effect */
+        .confetti {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #facc15; /* Tailwind yellow-400 */
+            border-radius: 50%;
+            animation: fall 1s linear forwards;
+            pointer-events: none; /* Allow clicks through confetti */
+        }
+        @keyframes fall {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(50px) rotate(360deg); opacity: 0; }
+        }
+        /* Custom scrollbar for note list */
+        #notesList::-webkit-scrollbar {
+            width: 8px;
+        }
+        #notesList::-webkit-scrollbar-track {
+            background: #e2e8f0; /* Tailwind slate-200 */
+            border-radius: 10px;
+        }
+        #notesList::-webkit-scrollbar-thumb {
+            background-color: #94a3b8; /* Tailwind slate-400 */
+            border-radius: 10px;
+            border: 2px solid #e2e8f0; /* Tailwind slate-200 */
+        }
+        #notesList::-webkit-scrollbar-thumb:hover {
+            background-color: #64748b; /* Tailwind slate-500 */
+        }
+        /* Style for selected note */
+        .selected-note {
+            background-color: #e0f2fe !important; /* Tailwind sky-100 */
+            border-left: 4px solid #0ea5e9; /* Tailwind sky-500 */
+        }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen p-4 gap-4 bg-gradient-to-br from-blue-50 to-indigo-100">
+
+    <div class="w-full md:w-1/3 flex flex-col gap-4">
+        <div class="bg-white p-4 rounded-lg shadow-md flex-grow flex flex-col h-2/3 md:h-auto">
+            <h2 class="text-xl font-semibold mb-3 text-gray-700 border-b pb-2">My Notes</h2>
+            <div id="notesList" class="overflow-y-auto flex-grow pr-2">
+                <p class="text-gray-500 italic">No notes yet. Create one!</p>
+            </div>
+            <button id="newNoteBtn" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 ease-in-out flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> New Note
+            </button>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow-md h-1/3 md:h-auto">
+            <h3 class="text-lg font-semibold mb-2 text-gray-700"><i class="fas fa-calendar-alt mr-2 text-indigo-500"></i>W&L Events (Mock)</h3>
+            <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                <li>Fancy Dress Ball - Date TBD</li>
+                <li>Mock Con Keynote - Check Website</li>
+                <li>Final Exams Begin - Study Hard!</li>
+                <li>Reading Days Start Soon</li>
+            </ul>
+            <p class="text-xs text-gray-400 mt-2 italic">Sync Status: Offline (Mock Data)</p>
+        </div>
+    </div>
+
+    <div class="w-full md:w-2/3 bg-white p-6 rounded-lg shadow-lg flex flex-col relative">
+        <div id="editorContainer" class="flex flex-col h-full">
+             <input type="text" id="noteTitle" placeholder="Note Title" class="text-2xl font-bold mb-4 p-2 border-b-2 border-gray-200 focus:outline-none focus:border-blue-500 transition duration-150 ease-in-out">
+
+             <textarea id="noteEditor" class="flex-grow p-3 border border-gray-200 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 transition duration-150 ease-in-out" placeholder="Start typing your notes here..."></textarea>
+
+             <div class="mt-4 flex flex-wrap items-center justify-between gap-4">
+                 <div class="flex items-center gap-2">
+                     <label for="locationTag" class="text-sm font-medium text-gray-600"><i class="fas fa-map-marker-alt mr-1 text-red-500"></i>Location:</label>
+                     <select id="locationTag" class="p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+                         <option value="">None</option>
+                         <option value="Leyburn Library">Leyburn Library</option>
+                         <option value="Science Center">Science Center</option>
+                         <option value="Elrod Commons">Elrod Commons</option>
+                         <option value="Commons Dining">Commons Dining</option>
+                         <option value="Huntley Hall">Huntley Hall</option>
+                         <option value="Newcomb Hall">Newcomb Hall</option>
+                         <option value="Payne Hall">Payne Hall</option>
+                         <option value="Tucker Hall">Tucker Hall</option>
+                         <option value="Wilson Hall">Wilson Hall</option>
+                         <option value="Lenfest Center">Lenfest Center</option>
+                         <option value="Doremus Gym">Doremus Gym</option>
+                         <option value="Law School">Law School</option>
+                         <option value="Other">Other</option>
+                     </select>
+                 </div>
+
+                 <div class="flex gap-3">
+                     <button id="saveNoteBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded-lg transition duration-150 ease-in-out flex items-center gap-2">
+                         <i class="fas fa-save"></i> Save
+                     </button>
+                     <button id="deleteNoteBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition duration-150 ease-in-out flex items-center gap-2">
+                         <i class="fas fa-trash"></i> Delete
+                     </button>
+                 </div>
+             </div>
+
+             <div class="mt-6 border-t pt-4 flex justify-center relative">
+                 <button id="gradeBoosterBtn" class="bg-gradient-to-r from-yellow-400 via-red-500 to-pink-500 hover:from-yellow-500 hover:to-pink-600 text-white font-extrabold py-2 px-6 rounded-full shadow-lg transform hover:scale-105 transition duration-200 ease-in-out flex items-center gap-2">
+                     <i class="fas fa-rocket"></i> Grade Booster!
+                 </button>
+                 <div id="boosterEffectContainer" class="absolute inset-0 pointer-events-none"></div>
+             </div>
+        </div>
+         <div id="placeholder" class="text-center text-gray-500 italic mt-10">
+             Select a note or create a new one to start editing.
+         </div>
+    </div>
+
+    <div id="honorCodeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+            <i class="fas fa-gavel text-4xl text-blue-600 mb-4"></i>
+            <h3 class="text-lg font-semibold mb-2">Honor System Reminder</h3>
+            <p class="text-gray-700 mb-4">As you save your work, please remember the principles of the W&L Honor System.</p>
+            <button id="honorCodeConfirmBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full">Acknowledge</button>
+        </div>
+    </div>
+
+    <div id="disappointmentModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gradient-to-br from-pink-300 via-purple-300 to-indigo-400 p-8 rounded-lg shadow-xl max-w-md w-full text-center relative overflow-hidden">
+            <span class="text-6xl animate-bounce absolute top-4 left-4">🎉</span>
+            <span class="text-6xl animate-bounce absolute top-4 right-4" style="animation-delay: 0.2s;">✨</span>
+            <span class="text-6xl animate-bounce absolute bottom-4 left-4" style="animation-delay: 0.4s;">😂</span>
+            <span class="text-6xl animate-bounce absolute bottom-4 right-4" style="animation-delay: 0.6s;">👍</span>
+
+            <h3 class="text-2xl font-bold text-white mb-4 drop-shadow-lg">Grade Boosted... LOL!</h3>
+            <p class="text-lg text-white mb-6 drop-shadow">Did you really think it was that easy? Keep up the hard work - *that's* the real grade booster!</p>
+            <button id="disappointmentConfirmBtn" class="bg-white hover:bg-gray-100 text-indigo-600 font-bold py-2 px-6 rounded-full transition duration-150 ease-in-out">Okay, okay...</button>
+        </div>
+    </div>
+
+
+    <script>
+        // DOM Elements
+        const noteTitleInput = document.getElementById('noteTitle');
+        const noteEditor = document.getElementById('noteEditor');
+        const locationTagSelect = document.getElementById('locationTag');
+        const saveNoteBtn = document.getElementById('saveNoteBtn');
+        const newNoteBtn = document.getElementById('newNoteBtn');
+        const deleteNoteBtn = document.getElementById('deleteNoteBtn');
+        const notesListDiv = document.getElementById('notesList');
+        const gradeBoosterBtn = document.getElementById('gradeBoosterBtn');
+        const boosterEffectContainer = document.getElementById('boosterEffectContainer');
+        const honorCodeModal = document.getElementById('honorCodeModal');
+        const honorCodeConfirmBtn = document.getElementById('honorCodeConfirmBtn');
+        const disappointmentModal = document.getElementById('disappointmentModal');
+        const disappointmentConfirmBtn = document.getElementById('disappointmentConfirmBtn');
+        const editorContainer = document.getElementById('editorContainer');
+        const placeholderDiv = document.getElementById('placeholder');
+
+        // State
+        let notes = [];
+        let currentNoteId = null;
+        let honorCodeAcknowledgedThisSession = false; // Track if modal shown this session
+
+        // --- Local Storage Functions ---
+        function saveNotesToLocalStorage() {
+            localStorage.setItem('wluNotes', JSON.stringify(notes));
+        }
+
+        function loadNotesFromLocalStorage() {
+            const storedNotes = localStorage.getItem('wluNotes');
+            if (storedNotes) {
+                notes = JSON.parse(storedNotes);
+            } else {
+                notes = []; // Initialize if nothing is stored
+            }
+        }
+
+        // --- Note Management Functions ---
+        function displayNotesList() {
+            notesListDiv.innerHTML = ''; // Clear current list
+            if (notes.length === 0) {
+                notesListDiv.innerHTML = '<p class="text-gray-500 italic p-2">No notes yet. Create one!</p>';
+                return;
+            }
+
+            // Sort notes by last modified date (newest first)
+            notes.sort((a, b) => b.lastModified - a.lastModified);
+
+            notes.forEach(note => {
+                const noteElement = document.createElement('div');
+                noteElement.classList.add('p-3', 'mb-2', 'rounded-md', 'cursor-pointer', 'hover:bg-gray-100', 'transition', 'duration-150', 'ease-in-out', 'border', 'border-gray-200');
+                noteElement.dataset.id = note.id;
+
+                // Add selected class if it's the current note
+                if (note.id === currentNoteId) {
+                    noteElement.classList.add('selected-note');
+                }
+
+                const titleText = note.title.trim() ? note.title : 'Untitled Note';
+                const truncatedContent = note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '');
+                const locationInfo = note.location ? `<span class="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded"><i class="fas fa-map-marker-alt mr-1"></i>${note.location}</span>` : '';
+                const dateString = new Date(note.lastModified).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                noteElement.innerHTML = `
+                    <h4 class="font-semibold text-gray-800 truncate">${titleText}</h4>
+                    <p class="text-sm text-gray-600 truncate">${truncatedContent}</p>
+                    <div class="flex justify-between items-center mt-1">
+                         ${locationInfo}
+                         <span class="text-xs text-gray-400">${dateString}</span>
+                    </div>
+                `;
+                noteElement.addEventListener('click', () => loadNoteIntoEditor(note.id));
+                notesListDiv.appendChild(noteElement);
+            });
+        }
+
+        function loadNoteIntoEditor(id) {
+            const note = notes.find(n => n.id === id);
+            if (note) {
+                currentNoteId = id;
+                noteTitleInput.value = note.title;
+                noteEditor.value = note.content;
+                locationTagSelect.value = note.location || '';
+                showEditor();
+                displayNotesList(); // Re-render list to highlight selected note
+            }
+        }
+
+        function saveCurrentNote() {
+            const title = noteTitleInput.value.trim();
+            const content = noteEditor.value;
+            const location = locationTagSelect.value;
+            const now = Date.now();
+
+            if (!content && !title) {
+                 // Optional: Add feedback if trying to save an empty note
+                 console.log("Cannot save an empty note.");
+                 // Maybe delete if it was a new, empty note?
+                 if (currentNoteId && notes.find(n => n.id === currentNoteId && !n.title && !n.content)) {
+                    deleteNote(currentNoteId, true); // silent delete
+                 }
+                 clearEditor();
+                 return; // Don't save empty notes
+            }
+
+            // Check if it's an existing note
+            const existingNoteIndex = notes.findIndex(n => n.id === currentNoteId);
+
+            if (existingNoteIndex > -1) {
+                // Update existing note
+                notes[existingNoteIndex] = {
+                    ...notes[existingNoteIndex],
+                    title: title,
+                    content: content,
+                    location: location,
+                    lastModified: now
+                };
+            } else {
+                // Create new note (should have currentNoteId set by createNewNote)
+                 if (currentNoteId) {
+                    notes.push({
+                        id: currentNoteId,
+                        title: title,
+                        content: content,
+                        location: location,
+                        lastModified: now
+                    });
+                 } else {
+                    // Fallback if something went wrong - create a new ID
+                     console.error("currentNoteId was not set for new note. Creating fallback.");
+                     const newId = Date.now().toString();
+                     notes.push({
+                        id: newId,
+                        title: title,
+                        content: content,
+                        location: location,
+                        lastModified: now
+                    });
+                    currentNoteId = newId; // Set the ID so it can be potentially saved again
+                 }
+
+            }
+
+            // Show Honor Code modal only once per session before saving
+            if (!honorCodeAcknowledgedThisSession) {
+                showHonorCodeModal();
+            } else {
+                finalizeSave();
+            }
+        }
+
+        function finalizeSave() {
+            saveNotesToLocalStorage();
+            displayNotesList(); // Update the list
+            console.log("Note saved:", currentNoteId);
+             // Optional: Add visual feedback for save
+            saveNoteBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
+            setTimeout(() => {
+                 saveNoteBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Save';
+            }, 1500);
+        }
+
+
+        function createNewNote() {
+            clearEditor();
+            currentNoteId = Date.now().toString(); // Assign a unique ID immediately
+            showEditor();
+            noteTitleInput.focus();
+            displayNotesList(); // Update list to remove selection highlight if any
+            console.log("Ready for new note:", currentNoteId);
+        }
+
+        function deleteNote(idToDelete, silent = false) {
+            if (!idToDelete) return;
+
+            const noteTitle = notes.find(n => n.id === idToDelete)?.title || 'this note';
+            const confirmDelete = silent ? true : confirm(`Are you sure you want to delete "${noteTitle}"?`);
+
+            if (confirmDelete) {
+                notes = notes.filter(note => note.id !== idToDelete);
+                saveNotesToLocalStorage();
+                if (currentNoteId === idToDelete) {
+                    clearEditor(); // Clear editor if the deleted note was loaded
+                }
+                displayNotesList(); // Refresh the list
+                console.log("Note deleted:", idToDelete);
+            }
+        }
+
+        function clearEditor() {
+            currentNoteId = null;
+            noteTitleInput.value = '';
+            noteEditor.value = '';
+            locationTagSelect.value = '';
+            hideEditor(); // Hide editor, show placeholder
+            displayNotesList(); // Update list to remove selection highlight
+        }
+
+        function showEditor() {
+            editorContainer.classList.remove('hidden');
+            placeholderDiv.classList.add('hidden');
+        }
+
+        function hideEditor() {
+            editorContainer.classList.add('hidden');
+            placeholderDiv.classList.remove('hidden');
+        }
+
+
+        // --- Feature Functions ---
+
+        // Honor Code Modal
+        function showHonorCodeModal() {
+            honorCodeModal.classList.remove('hidden');
+        }
+
+        function hideHonorCodeModal() {
+            honorCodeModal.classList.add('hidden');
+        }
+
+        // Grade Booster (Disappointing Feature)
+        function triggerGradeBooster() {
+            // 1. Confetti effect near the button
+            for (let i = 0; i < 30; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                // Random colors (Tailwind palette inspired)
+                const colors = ['#facc15', '#f87171', '#fb923c', '#a78bfa', '#60a5fa'];
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                // Position around the button
+                const rect = gradeBoosterBtn.getBoundingClientRect();
+                const parentRect = boosterEffectContainer.getBoundingClientRect(); // Use relative container
+                confetti.style.left = `${Math.random() * rect.width + (rect.left - parentRect.left)}px`;
+                confetti.style.top = `${rect.top - parentRect.top - 10}px`; // Start above button
+
+                boosterEffectContainer.appendChild(confetti);
+                // Remove confetti after animation
+                setTimeout(() => confetti.remove(), 1000);
+            }
+
+             // 2. Show the disappointment modal
+             setTimeout(() => {
+                 disappointmentModal.classList.remove('hidden');
+             }, 300); // Show modal slightly after confetti starts
+        }
+
+        function hideDisappointmentModal() {
+            disappointmentModal.classList.add('hidden');
+        }
+
+        // --- Event Listeners ---
+        newNoteBtn.addEventListener('click', createNewNote);
+        saveNoteBtn.addEventListener('click', saveCurrentNote);
+        deleteNoteBtn.addEventListener('click', () => {
+            if (currentNoteId) {
+                deleteNote(currentNoteId);
+            } else {
+                alert("Select a note to delete first.");
+            }
+        });
+        gradeBoosterBtn.addEventListener('click', triggerGradeBooster);
+        honorCodeConfirmBtn.addEventListener('click', () => {
+            honorCodeAcknowledgedThisSession = true;
+            hideHonorCodeModal();
+            finalizeSave(); // Proceed with the save action
+        });
+        disappointmentConfirmBtn.addEventListener('click', hideDisappointmentModal);
+
+        // Auto-save draft (simple version: save on input change after a delay)
+        let saveTimeout;
+        noteEditor.addEventListener('input', () => {
+            if (!currentNoteId) return; // Only auto-save existing notes or newly created ones
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                 // Silently update content without full save fanfare/modal
+                 const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+                 if (noteIndex > -1) {
+                     notes[noteIndex].content = noteEditor.value;
+                     notes[noteIndex].lastModified = Date.now(); // Update modified time
+                     saveNotesToLocalStorage();
+                     // Maybe update list preview subtly? For now, just save.
+                     console.log("Autosaved draft:", currentNoteId);
+                 } else if (currentNoteId && (noteEditor.value || noteTitleInput.value)) {
+                     // If it's a new note ID and has content, create it silently
+                     notes.push({
+                         id: currentNoteId,
+                         title: noteTitleInput.value.trim(),
+                         content: noteEditor.value,
+                         location: locationTagSelect.value,
+                         lastModified: Date.now()
+                     });
+                     saveNotesToLocalStorage();
+                     displayNotesList(); // Show the new note in the list
+                     console.log("Autosaved new draft:", currentNoteId);
+                 }
+            }, 1500); // Save 1.5 seconds after user stops typing
+        });
+         noteTitleInput.addEventListener('input', () => {
+             if (!currentNoteId) return;
+             clearTimeout(saveTimeout);
+             saveTimeout = setTimeout(() => {
+                 const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+                  if (noteIndex > -1) {
+                     notes[noteIndex].title = noteTitleInput.value.trim();
+                     notes[noteIndex].lastModified = Date.now();
+                     saveNotesToLocalStorage();
+                     displayNotesList(); // Update title in the list
+                     console.log("Autosaved title:", currentNoteId);
+                  } else if (currentNoteId && (noteEditor.value || noteTitleInput.value)) {
+                     // If it's a new note ID and has content, create it silently
+                     notes.push({
+                         id: currentNoteId,
+                         title: noteTitleInput.value.trim(),
+                         content: noteEditor.value,
+                         location: locationTagSelect.value,
+                         lastModified: Date.now()
+                     });
+                     saveNotesToLocalStorage();
+                     displayNotesList(); // Show the new note in the list
+                     console.log("Autosaved new draft title:", currentNoteId);
+                 }
+             }, 1000); // Save title faster
+         });
+         locationTagSelect.addEventListener('change', () => {
+             if (!currentNoteId) return;
+             const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+             if (noteIndex > -1) {
+                 notes[noteIndex].location = locationTagSelect.value;
+                 notes[noteIndex].lastModified = Date.now();
+                 saveNotesToLocalStorage();
+                 displayNotesList(); // Update location tag in list
+                 console.log("Autosaved location:", currentNoteId);
+             }
+         });
+
+
+        // --- Initialization ---
+        function initializeApp() {
+            loadNotesFromLocalStorage();
+            displayNotesList();
+            hideEditor(); // Start with placeholder showing
+            console.log("W&L Note Taker Initialized");
+        }
+
+        // Initialize the app when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+
+</body>
+</html>
