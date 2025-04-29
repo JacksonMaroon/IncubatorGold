@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traveller's Apple Run</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #f0f0f0; /* Light gray background */
+            color: #00205b; /* W&L Blue */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        #gameCanvas {
+            border: 5px solid #00205b; /* W&L Blue border */
+            background-color: #ffffff; /* White canvas */
+            display: block; /* Prevents extra space below canvas */
+            margin: 0 auto; /* Center canvas */
+            max-width: 100%; /* Ensure canvas fits smaller screens */
+            height: auto; /* Maintain aspect ratio */
+        }
+        .game-container {
+            background-color: #e8e8e8; /* Slightly darker gray for container */
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            text-align: center;
+            width: 100%;
+            max-width: 640px; /* Limit max width */
+        }
+        .commentary-box {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #ffffff;
+            border: 2px dashed #00205b;
+            border-radius: 10px;
+            min-height: 50px; /* Ensure space for text */
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #333;
+        }
+        /* Style for the new premise box */
+        #gamePremise {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 0.75rem; /* Slightly smaller font */
+            line-height: 1.5;
+            color: #333;
+            text-align: left; /* Align text left for readability */
+        }
+         #gamePremise strong {
+             color: #00205b; /* W&L Blue for emphasis */
+         }
+        button {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #00205b; /* W&L Blue */
+            color: #ffffff; /* White text */
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        button:hover {
+            background-color: #003380; /* Darker blue on hover */
+        }
+        .score {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #00205b;
+        }
+        /* Style for game elements */
+        .traveller-head { fill: #4a4a4a; } /* Dark Gray */
+        .traveller-body { fill: #7a7a7a; } /* Lighter Gray */
+        .apple { fill: #ff0000; } /* Red */
+        .beer { fill: #ffcc00; } /* Gold/Yellow */
+        .student { fill: #005daa; } /* Another shade of blue for student */
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .title { font-size: 1.2rem; }
+            .score { font-size: 1rem; }
+            .commentary-box { font-size: 0.7rem; }
+            #gamePremise { font-size: 0.7rem; } /* Adjust premise font size */
+            button { padding: 8px 16px; }
+            .game-container { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <h1 class="title">Traveller's Apple Run</h1>
+
+    <div id="gamePremise">
+        <p>You are <strong>Traveller</strong>, W&L's favorite horse. Use the <strong>arrow keys</strong> to navigate.</p>
+        <p>Eat <strong>apples (🟥)</strong> to grow longer and score points. Goal: <strong>25 apples</strong>.</p>
+        <p>Avoid hitting walls or yourself!</p>
+        <p>Grab <strong>beer (🟨)</strong> for a temporary slowdown, but be quick! Pesky <strong>students (🟦)</strong> might steal it if you wait too long.</p>
+        <p>Listen to Traveller's commentary - he's got opinions.</p>
+    </div>
+
+    <div class="score" style="display: none;">Apples Eaten: <span id="score">0</span> / 25</div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div id="commentary" class="commentary-box">Traveller: "Alright, let's get this over with. Use the arrow keys."</div>
+    <button id="startButton">Start Game</button>
+    <div id="gameOverMessage" class="font-bold mt-4" style="display: none;"></div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const scoreDisplay = document.querySelector('.score'); // Get the score container div
+    const commentaryElement = document.getElementById('commentary');
+    const startButton = document.getElementById('startButton');
+    const gameOverMessage = document.getElementById('gameOverMessage');
+    const gamePremiseElement = document.getElementById('gamePremise'); // Get the premise container
+
+    // --- Game Configuration ---
+    const grid = 20; // Size of each grid square
+    const canvasSize = 400; // Must match canvas width/height
+    const targetScore = 25;
+    let baseSpeed = 150; // Milliseconds per move (lower is faster)
+    let currentSpeed = baseSpeed;
+    let slowDuration = 5000; // 5 seconds slow effect
+    const beerTimeoutDuration = 8000; // 8 seconds before students appear
+    const studentSpeed = 80; // How fast the student moves (lower is faster)
+
+    // --- Game State ---
+    let traveller;
+    let apple;
+    let beer; // Power-up object { x, y, type, spawnTime }
+    let student; // Student object { x, y, targetX, targetY }
+    let dx, dy; // Direction
+    let score;
+    let gameLoopTimeout;
+    let slowTimeout;
+    let studentMoveInterval; // Separate interval for student movement
+    let gameRunning = false;
+
+    // --- Traveller Commentary ---
+    const commentary = {
+        start: [
+            "Alright, let's get this over with. Use the arrow keys.",
+            "Try not to run me into a wall immediately, okay?",
+            "Do you even know how to play this?",
+            "Let's see how long you last.",
+            "Just point me towards the apples... or the beer."
+        ],
+        apple: [
+            "An apple. Riveting.",
+            "Oh great, now I'm even longer. Thanks a lot.",
+            "More apples? Is that all there is?",
+            "Couldn't you find a carrot for a change?",
+            "Fine, I'll eat it. But I'm not happy about it."
+        ],
+        beer: [
+            "Beer! Finally, something useful around here.",
+            "Ah, refreshment. Now I can tolerate you... briefly.",
+            "Slows me down? Perfect excuse for your bad driving.",
+            "Liquid courage! Or maybe just liquid.",
+            "Don't get used to this pace."
+        ],
+        near_miss: [
+            "Whoa! Watch it!",
+            "Trying to get me killed?",
+            "That was closer than my last vet visit.",
+            "Did you *mean* to do that?",
+            "My mane flashed before my eyes!"
+        ],
+        growing: [
+            "I'm practically a train now.",
+            "You're aware we're running out of room, right?",
+            "This is getting ridiculous.",
+            "Remember when I could turn easily? Good times.",
+            "Hope you have a plan, because I'm getting long."
+        ],
+        beer_warning: [ // NEW: When students appear
+            "Hey! Are those students eyeing my beer?",
+            "Oh no, not them again. Get the beer, quick!",
+            "If they take that beer, I'm blaming you.",
+            "Seriously? You're gonna let them just take it?",
+            "Move it! They're coming for the good stuff!"
+        ],
+        beer_stolen: [ // NEW: When students take the beer
+            "And... it's gone. Thanks to your 'speed'.",
+            "Great. Just great. The students got the beer.",
+            "I can't believe you let them take it!",
+            "Well done. You let the undergrads outsmart us.",
+            "No beer for me, I guess. Hope you're happy."
+        ],
+        game_over: [
+            "Well, that was predictable.",
+            "Game over. Told you.",
+            "And *that's* why horses shouldn't play snake.",
+            "Maybe try again when you're better at this?",
+            "I'm going back to the stable. Alone."
+        ],
+         win: [
+            "We... actually did it? I'm shocked.",
+            "25 apples? My stomach hurts. But hey, we won!",
+            "You finally managed it. Don't expect a parade.",
+            "Alright, alright, you win. Now leave me alone.",
+            "I guess you're not *completely* incompetent."
+        ]
+    };
+
+    // --- Utility Functions ---
+    function getRandomInt(min, max) {
+        return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    function getRandomComment(category) {
+        const comments = commentary[category];
+        return `Traveller: "${comments[getRandomInt(0, comments.length)]}"`;
+    }
+
+    function updateCommentary(category) {
+        // Avoid interrupting beer warnings/stolen messages
+        if (category !== 'beer_warning' && category !== 'beer_stolen' && student) {
+           // Don't override student commentary if student is active
+        } else if (gameRunning || category === 'start' || category === 'game_over' || category === 'win' || category === 'beer_stolen') {
+             // Only update commentary if game is running or for specific end/start states
+             commentaryElement.textContent = getRandomComment(category);
+        }
+    }
+
+    function placeItem(itemType) {
+        let newItem = {
+            x: getRandomInt(0, canvasSize / grid) * grid,
+            y: getRandomInt(0, canvasSize / grid) * grid,
+            type: itemType
+        };
+
+        // Ensure item doesn't spawn on traveller's body or student
+        let occupied = true;
+        while(occupied) {
+            occupied = traveller.cells.some(cell => cell.x === newItem.x && cell.y === newItem.y) ||
+                       (student && student.x === newItem.x && student.y === newItem.y) ||
+                       (beer && beer.x === newItem.x && beer.y === newItem.y && itemType !== 'beer') || // Avoid spawning apple on beer
+                       (apple && apple.x === newItem.x && apple.y === newItem.y && itemType !== 'apple'); // Avoid spawning beer on apple
+
+            if (occupied) {
+                 newItem.x = getRandomInt(0, canvasSize / grid) * grid;
+                 newItem.y = getRandomInt(0, canvasSize / grid) * grid;
+            }
+        }
+
+
+        // Add spawn time specifically for beer
+        if (itemType === 'beer') {
+            newItem.spawnTime = Date.now();
+        }
+
+        return newItem;
+    }
+
+    // --- Student Logic ---
+    function spawnStudent() {
+        if (!beer || student) return; // No beer, or student already exists, no spawn
+
+        // Determine starting edge (opposite side of beer, roughly)
+        let startX, startY;
+        const beerSideX = beer.x < canvasSize / 2 ? 'left' : 'right';
+        const beerSideY = beer.y < canvasSize / 2 ? 'top' : 'bottom';
+
+        // Start opposite the beer's quadrant for more travel time
+        if (Math.abs(beer.x - canvasSize / 2) > Math.abs(beer.y - canvasSize / 2)) {
+            // Beer is further left/right, student starts top/bottom
+             startX = getRandomInt(0, canvasSize / grid) * grid;
+             startY = beerSideY === 'top' ? canvasSize - grid : 0;
+        } else {
+            // Beer is further top/bottom, student starts left/right
+            startY = getRandomInt(0, canvasSize / grid) * grid;
+            startX = beerSideX === 'left' ? canvasSize - grid : 0;
+        }
+
+
+        student = {
+            x: startX,
+            y: startY,
+            targetX: beer.x,
+            targetY: beer.y,
+            color: '#005daa' // Student color
+        };
+        updateCommentary('beer_warning'); // Announce the student's arrival
+
+        // Start student movement interval
+        clearInterval(studentMoveInterval); // Clear previous interval if any
+        studentMoveInterval = setInterval(moveStudent, studentSpeed);
+    }
+
+    function moveStudent() {
+        if (!student || !beer || !gameRunning) {
+            clearInterval(studentMoveInterval);
+            student = null; // Clear student if game stopped or beer gone
+            return;
+        }
+
+        // Simple direct movement towards target
+        if (student.x < student.targetX) student.x += grid;
+        else if (student.x > student.targetX) student.x -= grid;
+
+        if (student.y < student.targetY) student.y += grid;
+        else if (student.y > student.targetY) student.y -= grid;
+
+        // Check if student reached the beer
+        if (student.x === student.targetX && student.y === student.targetY) {
+            if (beer) { // Check if beer still exists (player might have grabbed it)
+                 updateCommentary('beer_stolen');
+                 beer = null; // Beer is stolen!
+            }
+            student = null; // Student disappears
+            clearInterval(studentMoveInterval);
+        }
+    }
+
+    // --- Game Initialization ---
+    function initializeGame() {
+        gamePremiseElement.style.display = 'none'; // Hide premise
+        scoreDisplay.style.display = 'block'; // Show score
+        gameOverMessage.style.display = 'none'; // Hide game over message
+
+        traveller = {
+            x: grid * 5, // Start position
+            y: grid * 5,
+            cells: [], // Array to store body segments
+            maxCells: 4, // Initial length
+            colorHead: '#4a4a4a', // Dark Gray
+            colorBody: '#7a7a7a'  // Lighter Gray
+        };
+        // Populate initial body segments
+        traveller.cells = []; // Clear existing cells
+        for (let i = 0; i < traveller.maxCells; i++) {
+            // Start horizontally
+             traveller.cells.push({ x: traveller.x - i * grid, y: traveller.y });
+        }
+
+
+        apple = placeItem('apple');
+        beer = null; // No beer initially
+        student = null; // No student initially
+        dx = grid; // Initial direction: right
+        dy = 0;
+        score = 0;
+        scoreElement.textContent = score;
+        currentSpeed = baseSpeed;
+        clearTimeout(slowTimeout);
+        clearInterval(studentMoveInterval); // Clear student interval on reset
+        updateCommentary('start'); // Give starting commentary
+        gameRunning = true;
+        startButton.textContent = "Restart Game";
+        startButton.disabled = true; // Disable while playing
+        clearTimeout(gameLoopTimeout); // Clear previous loop if any
+        gameLoop(); // Start the loop
+    }
+
+    // --- Game Loop ---
+    function gameLoop() {
+        if (!gameRunning) return;
+
+        gameLoopTimeout = setTimeout(() => {
+            requestAnimationFrame(() => {
+                ctx.clearRect(0, 0, canvasSize, canvasSize); // Clear canvas
+
+                // Check for beer timeout BEFORE moving traveller
+                 checkBeerTimeout();
+
+                moveTraveller(); // Move traveller based on dx, dy
+                drawTraveller();
+                drawItems(); // Includes drawing student if active
+                checkCollisions(); // Check traveller collisions
+
+                if (gameRunning) { // Check again in case collision stopped the game
+                    gameLoop();
+                }
+            });
+        }, currentSpeed); // Control game speed
+    }
+
+    // --- Movement & Drawing ---
+    function moveTraveller() {
+         // Calculate new head position based on direction (dx, dy)
+        const head = { x: traveller.cells[0].x + dx, y: traveller.cells[0].y + dy };
+
+        // Add new head to the beginning of the cells array
+        traveller.cells.unshift(head);
+
+        // Remove tail segment if not growing
+        if (traveller.cells.length > traveller.maxCells) {
+            traveller.cells.pop();
+        }
+        // Check for near misses (optional commentary trigger)
+        checkNearMiss();
+    }
+
+    function drawTraveller() {
+        traveller.cells.forEach((cell, index) => {
+            ctx.fillStyle = index === 0 ? traveller.colorHead : traveller.colorBody;
+            ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1); // Subtract 1 for grid lines effect
+        });
+    }
+
+    function drawItems() {
+        // Draw Apple
+        if (apple) {
+            ctx.fillStyle = '#ff0000'; // Red
+            // Simple square apple
+            ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
+             // // Optional: Draw a small "stem" (pixel art style)
+             // ctx.fillStyle = '#8B4513'; // Brown
+             // ctx.fillRect(apple.x + grid * 0.4, apple.y - grid * 0.2, grid * 0.2, grid * 0.3);
+        }
+        // Draw Beer
+        if (beer) {
+            ctx.fillStyle = '#ffcc00'; // Gold/Yellow
+            // Simple square beer
+            ctx.fillRect(beer.x, beer.y, grid - 1, grid - 1);
+            // // Optional: Draw a white "foam" top
+            // ctx.fillStyle = '#ffffff';
+            // ctx.fillRect(beer.x, beer.y, grid - 1, grid * 0.3);
+        }
+        // Draw Student
+        if (student) {
+            ctx.fillStyle = student.color; // Blue
+             // Simple square student
+             ctx.fillRect(student.x, student.y, grid -1, grid -1);
+        }
+    }
+
+     // --- Beer Timeout Check ---
+     function checkBeerTimeout() {
+        if (beer && !student && Date.now() - beer.spawnTime > beerTimeoutDuration) {
+            spawnStudent(); // Time's up, spawn the student!
+        }
+     }
+
+
+    // --- Collision & Interaction ---
+    function checkCollisions() {
+        if (!traveller || !traveller.cells || traveller.cells.length === 0) return; // Safety check
+
+        const head = traveller.cells[0];
+
+        // Wall collision
+        if (head.x < 0 || head.x >= canvasSize || head.y < 0 || head.y >= canvasSize) {
+            endGame(false); // false = did not win
+            return;
+        }
+
+        // Self collision
+        for (let i = 1; i < traveller.cells.length; i++) {
+            if (head.x === traveller.cells[i].x && head.y === traveller.cells[i].y) {
+                endGame(false);
+                return;
+            }
+        }
+
+        // Apple collision
+        if (apple && head.x === apple.x && head.y === apple.y) {
+            score++;
+            scoreElement.textContent = score;
+            traveller.maxCells++; // Grow
+            apple = placeItem('apple');
+            updateCommentary('apple');
+
+            // Occasionally spawn beer after eating an apple (e.g., 20% chance), only if no beer/student active
+            if (!beer && !student && Math.random() < 0.2) {
+                beer = placeItem('beer');
+            }
+
+            // Commentary for getting longer
+            if (score > 0 && score % 5 === 0) { // Comment every 5 apples
+                 updateCommentary('growing');
+            }
+
+            // Check for win condition
+            if (score >= targetScore) {
+                endGame(true); // true = won
+                return;
+            }
+        }
+
+        // Beer collision
+        if (beer && head.x === beer.x && head.y === beer.y) {
+            beer = null; // Remove beer
+            updateCommentary('beer');
+            activateSlowdown();
+            // If student was active, remove them
+            if (student) {
+                student = null;
+                clearInterval(studentMoveInterval);
+            }
+        }
+
+         // Student collision (Traveller runs into student) - Optional: Make student an obstacle?
+         // if (student && head.x === student.x && head.y === student.y) {
+         //     endGame(false); // Optional: Game over if you hit the student
+         //     return;
+         // }
+    }
+
+    function checkNearMiss() {
+        if (!traveller || !traveller.cells || traveller.cells.length === 0) return;
+        const head = traveller.cells[0];
+        const nextX = head.x + dx;
+        const nextY = head.y + dy;
+
+        // Check proximity to walls
+        if (nextX < 0 || nextX >= canvasSize - grid || nextY < 0 || nextY >= canvasSize - grid) {
+            if (Math.random() < 0.1) { // 10% chance to comment on near wall miss
+                 updateCommentary('near_miss');
+            }
+        }
+
+        // Check proximity to self (simplified check)
+        for (let i = 3; i < traveller.cells.length; i++) { // Start further back
+            if (Math.abs(nextX - traveller.cells[i].x) < grid * 2 && Math.abs(nextY - traveller.cells[i].y) < grid * 2) {
+                 if (Math.random() < 0.05) { // 5% chance to comment on near self miss
+                     updateCommentary('near_miss');
+                 }
+                 break; // Only one comment per check
+            }
+        }
+    }
+
+
+    function activateSlowdown() {
+        currentSpeed = baseSpeed * 1.8; // Significantly slower
+        clearTimeout(slowTimeout); // Clear existing timer if any
+        slowTimeout = setTimeout(() => {
+            currentSpeed = baseSpeed; // Reset speed
+            // Optional: Add commentary when speed returns to normal
+            // commentaryElement.textContent = "Traveller: \"Alright, break's over.\"";
+        }, slowDuration);
+    }
+
+    // --- Game End ---
+    function endGame(won) {
+        gameRunning = false;
+        clearTimeout(gameLoopTimeout);
+        clearTimeout(slowTimeout);
+        clearInterval(studentMoveInterval); // Stop student movement
+        startButton.disabled = false; // Re-enable button
+        startButton.textContent = "Play Again?";
+        student = null; // Clear student on game end
+        gamePremiseElement.style.display = 'block'; // Show premise again
+        scoreDisplay.style.display = 'none'; // Hide score display
+
+        if (won) {
+            gameOverMessage.textContent = "YOU WON! You ate 25 apples!";
+            gameOverMessage.className = "text-green-600 font-bold mt-4"; // Win message style
+            updateCommentary('win');
+        } else {
+            gameOverMessage.textContent = "GAME OVER!";
+            gameOverMessage.className = "text-red-600 font-bold mt-4"; // Lose message style
+            updateCommentary('game_over');
+        }
+        gameOverMessage.style.display = 'block';
+        ctx.clearRect(0, 0, canvasSize, canvasSize); // Clear canvas on game end
+    }
+
+    // --- Event Listener ---
+    document.addEventListener('keydown', (e) => {
+        if (!gameRunning) return; // Ignore input if game not running
+
+        // Prevent snake from reversing onto itself
+        // Left arrow key
+        if (e.key === 'ArrowLeft' && dx === 0) {
+            dx = -grid;
+            dy = 0;
+        }
+        // Up arrow key
+        else if (e.key === 'ArrowUp' && dy === 0) {
+            dy = -grid;
+            dx = 0;
+        }
+        // Right arrow key
+        else if (e.key === 'ArrowRight' && dx === 0) {
+            dx = grid;
+            dy = 0;
+        }
+        // Down arrow key
+        else if (e.key === 'ArrowDown' && dy === 0) {
+            dy = grid;
+            dx = 0;
+        }
+    });
+
+    // Start Button Listener
+    startButton.addEventListener('click', () => {
+        // Only initialize if the game isn't already running OR if it's explicitly over
+         if (!gameRunning || gameOverMessage.style.display === 'block') {
+             initializeGame();
+         }
+    });
+
+    // --- Initial Setup on Load ---
+    function initialScreenSetup() {
+        gamePremiseElement.style.display = 'block'; // Show premise
+        scoreDisplay.style.display = 'none'; // Hide score initially
+        gameOverMessage.style.display = 'none'; // Hide game over message
+        commentaryElement.textContent = getRandomComment('start'); // Show initial commentary
+        // Draw initial empty state (optional, shows border)
+        ctx.fillStyle = '#ffffff'; // White background
+        ctx.fillRect(0, 0, canvasSize, canvasSize);
+        // You could draw a static "Press Start" image here if desired
+    }
+
+    // Call initial setup when the script loads
+    initialScreenSetup();
+
+
+</script>
+
+</body>
+</html>
